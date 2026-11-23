@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Browser Extension Template options</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <form id="form">
+      <label class="field">
+        <span data-i18n="messageLabel"></span>
+        <input id="message" type="text" maxlength="200" required />
+      </label>
+      <button type="submit" data-i18n="saveButton"></button>
+      <span id="status" role="status"></span>
+    </form>
+    <script src="options.js"></script>
+  </body>
+</html>

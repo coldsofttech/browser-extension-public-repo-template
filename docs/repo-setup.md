@@ -9,7 +9,7 @@ python scripts/apply_repo_settings.py            # current repo
 python scripts/apply_repo_settings.py owner/repo # a specific repo
 ```
 
-This configures squash-only merging, delete branch on merge, the `skip-changelog` label, secret scanning with push protection, Dependabot alerts and security updates, CodeQL default setup, and the `main` ruleset from `.github/rulesets/main.json`. Requires the `gh` CLI with admin rights.
+This configures squash-only merging, delete branch on merge, the `skip-changelog` label, the store environments used by the release workflow (`chrome-web-store`, `edge-add-ons`, `firefox-amo`, limited to `v*` tags), secret scanning with push protection, Dependabot alerts and security updates, CodeQL default setup, and the `main` ruleset from `.github/rulesets/main.json`. Requires the `gh` CLI with admin rights.
 
 ## Protections
 
@@ -40,5 +40,5 @@ Repository admins can bypass the ruleset through a pull request. This lets a sol
 - Tick **Template repository** on this repo (Settings > General).
 - Run the **Init** workflow (Actions tab) to replace the template owner and repository name, merge its pull request, then delete `.github/workflows/init.yml`. It requires "Allow GitHub Actions to create and approve pull requests", which the settings script turns on. If the owner is an organization, change `.github/CODEOWNERS` to a team.
 - Fill in the contact method in `CODE_OF_CONDUCT.md`.
-- Run `pre-commit install --hook-type pre-commit --hook-type post-commit` locally (the post-commit type is needed for Sweepito cleanup).
-- CodeQL default setup only works once the repo contains a supported language, so run the script after adding code.
+- Run `npm ci`, then `pip install pre-commit && pre-commit install --hook-type pre-commit --hook-type post-commit` locally (the post-commit type is needed for Sweepito cleanup).
+- Store publishing is off until you opt in. See [publishing](publishing.md).

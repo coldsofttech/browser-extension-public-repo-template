@@ -24,3 +24,33 @@ repos:
     rev: v0.17.2
     hooks:
       - id: markdownlint-cli2
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        entry: npx prettier --check
+        language: system
+        types_or: [javascript, ts, json, css, html, yaml]
+        exclude: ^package-lock\.json$
+      - id: eslint
+        name: eslint
+        entry: npx eslint
+        language: system
+        types_or: [javascript, ts]
+        require_serial: true
+      - id: tsc
+        name: tsc
+        entry: npm run typecheck
+        language: system
+        types_or: [ts, tsx, json]
+        pass_filenames: false
+      - id: vitest
+        name: vitest
+        entry: npm test
+        language: system
+        types_or: [ts, json]
+        pass_filenames: false

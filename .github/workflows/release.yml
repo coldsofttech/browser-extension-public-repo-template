@@ -1,0 +1,139 @@
+name: Release
+
+# When a GitHub release is published: check the version, build and attach one package per browser.
+# Store uploads are opt-in. Set a repository variable (PUBLISH_CHROME, PUBLISH_EDGE or
+# PUBLISH_FIREFOX) to "true" and add that store's secrets to its environment.
+# See docs/publishing.md.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Check tag matches package version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          [ "$TAG" = "v$version" ] || { echo "Tag $TAG does not match version $version"; exit 1; }
+      - run: npm ci
+      - run: npm test
+      - run: npm run package
+      - run: npm run lint:ext
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: artifacts/
+          if-no-files-found: error
+
+  attach:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: artifacts/
+      - name: Attach packages to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" artifacts/*-*.zip --clobber --repo "$GITHUB_REPOSITORY"
+
+  publish-chrome:
+    if: vars.PUBLISH_CHROME == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: chrome-web-store
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: artifacts/
+      - name: Upload and publish
+        env:
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: npx --yes chrome-webstore-upload-cli@3 upload --source artifacts/*-chrome.zip --auto-publish
+
+  publish-edge:
+    if: vars.PUBLISH_EDGE == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: edge-add-ons
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: artifacts/
+      - name: Upload and publish
+        env:
+          PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+          CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          API_KEY: ${{ secrets.EDGE_API_KEY }}
+        run: |
+          api="https://api.addons.microsoftedge.microsoft.com/v1/products/$PRODUCT_ID/submissions"
+          auth=(-H "Authorization: ApiKey $API_KEY" -H "X-ClientID: $CLIENT_ID")
+
+          operation="$(curl -fsS -D - -o /dev/null -X POST "${auth[@]}" \
+            -H "Content-Type: application/zip" \
+            --data-binary @"$(ls artifacts/*-edge.zip)" \
+            "$api/draft/package" | tr -d '\r' | awk 'tolower($1) == "location:" { print $2 }')"
+          [ -n "$operation" ] || { echo "Upload was not accepted"; exit 1; }
+
+          for _ in $(seq 1 30); do
+            status="$(curl -fsS "${auth[@]}" "$api/draft/package/operations/$operation" | jq -r .status)"
+            echo "Package status: $status"
+            [ "$status" = Succeeded ] && break
+            [ "$status" = Failed ] && { echo "Package processing failed"; exit 1; }
+            sleep 10
+          done
+          [ "$status" = Succeeded ] || { echo "Timed out waiting for the package"; exit 1; }
+
+          curl -fsS -X POST "${auth[@]}" -H "Content-Type: application/json" \
+            -d '{"notes": "Published from GitHub Actions"}' "$api"
+
+  publish-firefox:
+    if: vars.PUBLISH_FIREFOX == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: firefox-amo
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:firefox
+      - name: Archive source for Firefox review
+        run: git archive --format=zip --output=source.zip HEAD
+      - name: Upload to addons.mozilla.org
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          npx web-ext sign --channel listed \
+            --source-dir dist/firefox \
+            --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET" \
+            --amo-metadata store/amo-metadata.json \
+            --upload-source-code source.zip

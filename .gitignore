@@ -26,3 +26,16 @@ desktop.ini
 .claude/settings.local.json
 
 # Add language- or tool-specific ignores below
+
+# Node
+node_modules/
+dist/
+artifacts/
+coverage/
+web-ext-artifacts/
+*.tsbuildinfo
+.eslintcache
+
+# Playwright
+test-results/
+playwright-report/

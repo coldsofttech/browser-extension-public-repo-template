@@ -75,6 +75,29 @@ def main():
         capture_output=True,
     )
 
+    # Environments used by release.yml for store uploads: only version tags may deploy to them.
+    if (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "release.yml").exists():
+        for env in ("chrome-web-store", "edge-add-ons", "firefox-amo"):
+            gh(
+                "api", "-X", "PUT", f"repos/{repo}/environments/{env}", "--input", "-",
+                payload={
+                    "deployment_branch_policy": {
+                        "protected_branches": False,
+                        "custom_branch_policies": True,
+                    }
+                },
+            )
+            policies = gh(
+                "api", f"repos/{repo}/environments/{env}/deployment-branch-policies",
+                "-q", ".branch_policies[].name",
+            ).splitlines()
+            if "v*" not in policies:
+                gh(
+                    "api", "-X", "POST",
+                    f"repos/{repo}/environments/{env}/deployment-branch-policies",
+                    "-f", "name=v*", "-f", "type=tag",
+                )
+
     # Ruleset (skips creation if one named "main" already exists).
     names = gh("api", f"repos/{repo}/rulesets", "-q", ".[].name").splitlines()
     if "main" in names:

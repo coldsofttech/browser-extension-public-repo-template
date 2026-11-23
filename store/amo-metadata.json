@@ -1,0 +1,5 @@
+{
+  "categories": { "firefox": ["other"] },
+  "summary": { "en-US": "Replace with a one-line summary of your extension." },
+  "version": { "license": "MIT" }
+}
